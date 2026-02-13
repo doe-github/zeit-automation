@@ -65,9 +65,9 @@ async function run() {
     console.error('Error occurred:', error);
 
     // Capture screenshot and HTML on failure
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const screenshotPath = path.join(process.cwd(), `error-screenshot-${timestamp}.png`);
-    const htmlPath = path.join(process.cwd(), `error-page-${timestamp}.html`);
+    const errorTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const screenshotPath = path.join(process.cwd(), `error-screenshot-${errorTimestamp}.png`);
+    const htmlPath = path.join(process.cwd(), `error-page-${errorTimestamp}.html`);
 
     try {
       await page.screenshot({ path: screenshotPath, fullPage: true });
