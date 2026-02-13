@@ -1,10 +1,11 @@
+# .github/workflows/zeit.yml
 name: ZEIT Automation
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Action to perform'
+        description: "Action to perform"
         required: true
         type: choice
         options:
@@ -24,13 +25,29 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
+      - name: Install Playwright (Chromium + OS deps)
+        run: npx playwright install --with-deps chromium
+
+      # Quick network/WAF sanity check BEFORE Playwright
+      - name: Connectivity check (curl)
+        env:
+          ZEIT_BASE_URL: ${{ secrets.ZEIT_BASE_URL }}
+        run: |
+          set -euxo pipefail
+          URL="${ZEIT_BASE_URL:-https://zeit.niceshops.cloud/}"
+          echo "URL=$URL"
+          echo "DNS:"
+          nslookup zeit.niceshops.cloud || true
+          echo "HTTP HEAD:"
+          curl -I -L --max-time 30 -A "Mozilla/5.0" "$URL" || true
+          echo "HTTP GET (first bytes):"
+          curl -L --max-time 30 -A "Mozilla/5.0" "$URL" | head -c 800 || true
+          echo
 
       - name: Run ZEIT automation
         env:
@@ -44,8 +61,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: error-artifacts
+          name: debug-artifacts
           path: |
-            error-*.png
-            error-*.html
+            artifacts/**
           retention-days: 7
