@@ -1,12 +1,53 @@
+// scripts/run.js
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-// Read environment variables
+// Env
 const ZEIT_USER = process.env.ZEIT_USER;
 const ZEIT_PASS = process.env.ZEIT_PASS;
 const ZEIT_BASE_URL = process.env.ZEIT_BASE_URL || 'https://zeit.niceshops.cloud/';
 const ACTION = process.env.ACTION || 'toggle';
+const DEBUG = (process.env.DEBUG || '').toLowerCase() === 'true';
+
+// Known selectors (from your earlier findings)
+const SELECTORS = {
+  username: 'input#txtuser-inputEl',
+  password: 'input#txtpass-inputEl',
+  loginBtn: 'a#loginbutton',
+
+  // Post-login marker (adjust if needed)
+  postLoginMarker: '#TilePanel0',
+
+  // TODO: verify these are stable after login
+  menuPkg: 'a#TileButtonPKG564',
+  clockInOut: 'a#TileButtonCID31513_3',
+};
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+async function saveDebugArtifacts(page, tag) {
+  const artifactsDir = path.join(process.cwd(), 'artifacts');
+  ensureDir(artifactsDir);
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+
+  // screenshot (never block the run)
+  try {
+    await page.screenshot({ path: path.join(artifactsDir, `${tag}-${ts}.png`), fullPage: true, timeout: 5000 });
+  } catch (e) {
+    console.log(`Artifact screenshot failed (ignored): ${e.message}`);
+  }
+
+  // html dump (can fail while navigating)
+  try {
+    const html = await page.content();
+    fs.writeFileSync(path.join(artifactsDir, `${tag}-${ts}.html`), html, 'utf-8');
+  } catch (e) {
+    console.log(`Artifact html dump failed (ignored): ${e.message}`);
+  }
+}
 
 async function run() {
   if (!ZEIT_USER || !ZEIT_PASS) {
@@ -14,105 +55,93 @@ async function run() {
     process.exit(1);
   }
 
-  console.log(`Starting ZEIT automation...`);
+  console.log('Starting ZEIT automation...');
   console.log(`Base URL: ${ZEIT_BASE_URL}`);
   console.log(`Action: ${ACTION}`);
   console.log(`User: ${ZEIT_USER}`);
+  console.log(`Debug: ${DEBUG}`);
 
   const browser = await chromium.launch({
     headless: true,
     args: ['--disable-dev-shm-usage', '--no-sandbox'],
   });
 
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    userAgent:
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
+  });
+
   const page = await context.newPage();
 
-  // Runner-friendly timeouts
+  // Timeouts
   page.setDefaultNavigationTimeout(90_000);
   page.setDefaultTimeout(30_000);
 
+  // Navigation / network debug
+  page.on('requestfailed', (r) => console.log('REQ FAILED:', r.url(), r.failure()?.errorText));
+  page.on('response', (r) => {
+    const s = r.status();
+    if (s >= 400) console.log('HTTP', s, r.url());
+  });
+  page.on('framenavigated', (f) => {
+    if (f === page.mainFrame()) console.log('NAV ->', f.url());
+  });
+
   try {
-    // Navigate to ZEIT login page (avoid waiting for full "load")
     console.log('Navigating to login page...');
-    await page.goto(ZEIT_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    // commit is more tolerant than domcontentloaded/load (helps with SPAs / hanging resources)
+    await page.goto(ZEIT_BASE_URL, { waitUntil: 'commit', timeout: 90_000 });
+    await page.waitForSelector('html', { timeout: 30_000 });
 
-    // Wait for login inputs to be visible
+    if (DEBUG) await saveDebugArtifacts(page, 'after-goto');
+
     console.log('Waiting for login inputs...');
-    await page.locator('input#txtuser-inputEl').waitFor({ state: 'visible', timeout: 60_000 });
-    await page.locator('input#txtpass-inputEl').waitFor({ state: 'visible', timeout: 60_000 });
+    await page.locator(SELECTORS.username).waitFor({ state: 'visible', timeout: 60_000 });
+    await page.locator(SELECTORS.password).waitFor({ state: 'visible', timeout: 60_000 });
 
-    // Login
     console.log('Logging in...');
-    await page.fill('input#txtuser-inputEl', ZEIT_USER);
-    await page.fill('input#txtpass-inputEl', ZEIT_PASS);
+    await page.fill(SELECTORS.username, ZEIT_USER);
+    await page.fill(SELECTORS.password, ZEIT_PASS);
+    await page.click(SELECTORS.loginBtn, { timeout: 30_000 });
 
-    // Click login button (ExtJS sometimes needs the element, not necessarily a nested span)
-    await page.click('a#loginbutton', { timeout: 30_000 });
-
-    // Wait for post-login UI (prefer a concrete element over networkidle)
     console.log('Waiting for post-login UI...');
-    await page.locator('#TilePanel0').waitFor({ state: 'visible', timeout: 60_000 });
-    console.log('Login successful (TilePanel0 visible)');
+    await page.locator(SELECTORS.postLoginMarker).waitFor({ state: 'visible', timeout: 60_000 });
+    console.log('Login successful');
+
+    if (DEBUG) await saveDebugArtifacts(page, 'after-login');
 
     if (ACTION === 'toggle') {
-      console.log('Clicking toggle button (in/out)...');
-
-      // NOTE: consider replacing these waits with specific element waits if they become flaky
-      await page.click('a#TileButtonPKG564', { timeout: 30_000 });
+      console.log('Toggle: navigating to clock in/out...');
+      await page.click(SELECTORS.menuPkg, { timeout: 30_000 });
       await page.waitForLoadState('domcontentloaded');
 
-      await page.click('a#TileButtonCID31513_3', { timeout: 30_000 });
+      await page.click(SELECTORS.clockInOut, { timeout: 30_000 });
       await page.waitForLoadState('domcontentloaded');
 
-      console.log('successfully navigated to the clock-in/out page');
       console.log('Toggle action completed');
     } else if (ACTION === 'break') {
-      console.log('Clicking break (lunch) button...');
-
-      await page.click('a#TileButtonPKG564', { timeout: 30_000 });
+      console.log('Break: navigating to lunch/break...');
+      // TODO: Replace with the actual break action selector once known.
+      // For now this mirrors your navigation path.
+      await page.click(SELECTORS.menuPkg, { timeout: 30_000 });
       await page.waitForLoadState('domcontentloaded');
 
-      await page.click('a#TileButtonCID31513_3', { timeout: 30_000 });
+      await page.click(SELECTORS.clockInOut, { timeout: 30_000 });
       await page.waitForLoadState('domcontentloaded');
 
-      console.log('successfully navigated to the clock-in/out page');
-      console.log('Break action completed');
+      console.log('Break action completed (TODO: implement actual break click)');
     } else {
       throw new Error(`Unknown action: ${ACTION}. Valid actions are: toggle, break`);
     }
 
     console.log('Action completed successfully!');
+    await browser.close();
   } catch (error) {
     console.error('Error occurred:', error);
-
-    // Capture screenshot and HTML on failure (never let artifact capture block the job)
-    const errorTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const artifactsDir = path.join(process.cwd(), 'artifacts');
-    fs.mkdirSync(artifactsDir, { recursive: true });
-
-    const screenshotPath = path.join(artifactsDir, `error-${errorTimestamp}.png`);
-    const htmlPath = path.join(artifactsDir, `error-${errorTimestamp}.html`);
-
-    try {
-      await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 5000 });
-      console.log(`Screenshot saved: ${screenshotPath}`);
-    } catch (e) {
-      console.log(`Screenshot failed (ignored): ${e.message}`);
-    }
-
-    try {
-      const html = await page.content();
-      fs.writeFileSync(htmlPath, html, 'utf-8');
-      console.log(`HTML saved: ${htmlPath}`);
-    } catch (e) {
-      console.log(`HTML dump failed (ignored): ${e.message}`);
-    }
-
+    await saveDebugArtifacts(page, 'error');
     await browser.close();
     process.exit(1);
   }
-
-  await browser.close();
 }
 
 run();
