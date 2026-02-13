@@ -42,7 +42,10 @@ async function run() {
     if (ACTION === 'toggle') {
       // TODO: Update selector for toggle button
       console.log('Clicking toggle button (in/out)...');
-      await page.click('button[data-action="toggle"]');
+      await page.click('a#TileButtonPKG564');
+      await page.waitForLoadState('networkidle')
+      await page.click('a#TileButtonCID31513_3')
+      console.log('successfully navigated to the clock-in/out page')
       // TODO: Replace with page.waitForSelector() for success indicator
       // Example: await page.waitForSelector('.success-message', { timeout: 5000 });
       await page.waitForLoadState('networkidle');
