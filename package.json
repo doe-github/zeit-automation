@@ -1,0 +1,19 @@
+{
+  "name": "zeit-automation",
+  "version": "1.0.0",
+  "description": "Automation for ZEIT time tracking system",
+  "main": "scripts/run.js",
+  "scripts": {
+    "start": "node scripts/run.js"
+  },
+  "keywords": [
+    "zeit",
+    "automation",
+    "playwright"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.55.1"
+  }
+}
