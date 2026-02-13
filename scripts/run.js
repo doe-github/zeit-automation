@@ -31,9 +31,9 @@ async function run() {
     // TODO: Update these selectors based on actual ZEIT login page structure
     // Login
     console.log('Logging in...');
-    await page.fill('input[name="username"]', ZEIT_USER);
-    await page.fill('input[name="password"]', ZEIT_PASS);
-    await page.click('button[type="submit"]');
+    await page.fill('input#txtuser-inputEl', ZEIT_USER);
+    await page.fill('input#txtpass-inputEl', ZEIT_PASS);
+    await page.click('a#loginbutton');
     
     // Wait for navigation after login
     await page.waitForLoadState('networkidle');
