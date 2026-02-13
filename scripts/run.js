@@ -53,9 +53,10 @@ async function run() {
     } else if (ACTION === 'break') {
       // TODO: Update selector for break/lunch button
       console.log('Clicking break (lunch) button...');
-      await page.click('button[data-action="break"]');
-      // TODO: Replace with page.waitForSelector() for success indicator
-      // Example: await page.waitForSelector('.break-confirmation', { timeout: 5000 });
+      await page.click('a#TileButtonPKG564');
+      await page.waitForLoadState('networkidle')
+      await page.click('a#TileButtonCID31513_3')
+      console.log('successfully navigated to the clock-in/out page')
       await page.waitForLoadState('networkidle');
       console.log('Break action completed');
     } else {
