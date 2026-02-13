@@ -19,69 +19,93 @@ async function run() {
   console.log(`Action: ${ACTION}`);
   console.log(`User: ${ZEIT_USER}`);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--disable-dev-shm-usage', '--no-sandbox'],
+  });
+
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  try {
-    // Navigate to ZEIT login page
-    console.log('Navigating to login page...');
-    await page.goto(ZEIT_BASE_URL);
+  // Runner-friendly timeouts
+  page.setDefaultNavigationTimeout(90_000);
+  page.setDefaultTimeout(30_000);
 
-    // TODO: Update these selectors based on actual ZEIT login page structure
+  try {
+    // Navigate to ZEIT login page (avoid waiting for full "load")
+    console.log('Navigating to login page...');
+    await page.goto(ZEIT_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+
+    // Wait for login inputs to be visible
+    console.log('Waiting for login inputs...');
+    await page.locator('input#txtuser-inputEl').waitFor({ state: 'visible', timeout: 60_000 });
+    await page.locator('input#txtpass-inputEl').waitFor({ state: 'visible', timeout: 60_000 });
+
     // Login
     console.log('Logging in...');
     await page.fill('input#txtuser-inputEl', ZEIT_USER);
     await page.fill('input#txtpass-inputEl', ZEIT_PASS);
-    await page.click('a#loginbutton');
-    
-    // Wait for navigation after login
-    await page.waitForLoadState('networkidle');
-    console.log('Login successful');
+
+    // Click login button (ExtJS sometimes needs the element, not necessarily a nested span)
+    await page.click('a#loginbutton', { timeout: 30_000 });
+
+    // Wait for post-login UI (prefer a concrete element over networkidle)
+    console.log('Waiting for post-login UI...');
+    await page.locator('#TilePanel0').waitFor({ state: 'visible', timeout: 60_000 });
+    console.log('Login successful (TilePanel0 visible)');
 
     if (ACTION === 'toggle') {
-      // TODO: Update selector for toggle button
       console.log('Clicking toggle button (in/out)...');
-      await page.click('a#TileButtonPKG564');
-      await page.waitForLoadState('networkidle')
-      await page.click('a#TileButtonCID31513_3')
-      console.log('successfully navigated to the clock-in/out page')
-      // TODO: Replace with page.waitForSelector() for success indicator
-      // Example: await page.waitForSelector('.success-message', { timeout: 5000 });
-      await page.waitForLoadState('networkidle');
+
+      // NOTE: consider replacing these waits with specific element waits if they become flaky
+      await page.click('a#TileButtonPKG564', { timeout: 30_000 });
+      await page.waitForLoadState('domcontentloaded');
+
+      await page.click('a#TileButtonCID31513_3', { timeout: 30_000 });
+      await page.waitForLoadState('domcontentloaded');
+
+      console.log('successfully navigated to the clock-in/out page');
       console.log('Toggle action completed');
     } else if (ACTION === 'break') {
-      // TODO: Update selector for break/lunch button
       console.log('Clicking break (lunch) button...');
-      await page.click('a#TileButtonPKG564');
-      await page.waitForLoadState('networkidle')
-      await page.click('a#TileButtonCID31513_3')
-      console.log('successfully navigated to the clock-in/out page')
-      await page.waitForLoadState('networkidle');
+
+      await page.click('a#TileButtonPKG564', { timeout: 30_000 });
+      await page.waitForLoadState('domcontentloaded');
+
+      await page.click('a#TileButtonCID31513_3', { timeout: 30_000 });
+      await page.waitForLoadState('domcontentloaded');
+
+      console.log('successfully navigated to the clock-in/out page');
       console.log('Break action completed');
     } else {
       throw new Error(`Unknown action: ${ACTION}. Valid actions are: toggle, break`);
     }
 
     console.log('Action completed successfully!');
-
   } catch (error) {
     console.error('Error occurred:', error);
 
-    // Capture screenshot and HTML on failure
+    // Capture screenshot and HTML on failure (never let artifact capture block the job)
     const errorTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const screenshotPath = path.join(process.cwd(), `error-screenshot-${errorTimestamp}.png`);
-    const htmlPath = path.join(process.cwd(), `error-page-${errorTimestamp}.html`);
+    const artifactsDir = path.join(process.cwd(), 'artifacts');
+    fs.mkdirSync(artifactsDir, { recursive: true });
+
+    const screenshotPath = path.join(artifactsDir, `error-${errorTimestamp}.png`);
+    const htmlPath = path.join(artifactsDir, `error-${errorTimestamp}.html`);
 
     try {
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      console.log(`Screenshot saved to: ${screenshotPath}`);
+      await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 5000 });
+      console.log(`Screenshot saved: ${screenshotPath}`);
+    } catch (e) {
+      console.log(`Screenshot failed (ignored): ${e.message}`);
+    }
 
+    try {
       const html = await page.content();
-      fs.writeFileSync(htmlPath, html);
-      console.log(`HTML saved to: ${htmlPath}`);
-    } catch (captureError) {
-      console.error('Failed to capture error artifacts:', captureError);
+      fs.writeFileSync(htmlPath, html, 'utf-8');
+      console.log(`HTML saved: ${htmlPath}`);
+    } catch (e) {
+      console.log(`HTML dump failed (ignored): ${e.message}`);
     }
 
     await browser.close();
