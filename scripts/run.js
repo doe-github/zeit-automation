@@ -43,13 +43,17 @@ async function run() {
       // TODO: Update selector for toggle button
       console.log('Clicking toggle button (in/out)...');
       await page.click('button[data-action="toggle"]');
-      await page.waitForTimeout(2000);
+      // TODO: Replace with page.waitForSelector() for success indicator
+      // Example: await page.waitForSelector('.success-message', { timeout: 5000 });
+      await page.waitForLoadState('networkidle');
       console.log('Toggle action completed');
     } else if (ACTION === 'break') {
       // TODO: Update selector for break/lunch button
       console.log('Clicking break (lunch) button...');
       await page.click('button[data-action="break"]');
-      await page.waitForTimeout(2000);
+      // TODO: Replace with page.waitForSelector() for success indicator
+      // Example: await page.waitForSelector('.break-confirmation', { timeout: 5000 });
+      await page.waitForLoadState('networkidle');
       console.log('Break action completed');
     } else {
       throw new Error(`Unknown action: ${ACTION}. Valid actions are: toggle, break`);
