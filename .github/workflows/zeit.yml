@@ -1,0 +1,49 @@
+name: ZEIT Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - toggle
+          - break
+
+jobs:
+  run-zeit-automation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run ZEIT automation
+        env:
+          ZEIT_USER: ${{ secrets.ZEIT_USER }}
+          ZEIT_PASS: ${{ secrets.ZEIT_PASS }}
+          ZEIT_BASE_URL: ${{ secrets.ZEIT_BASE_URL }}
+          ACTION: ${{ inputs.action }}
+        run: node scripts/run.js
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-artifacts
+          path: |
+            error-*.png
+            error-*.html
+          retention-days: 7
