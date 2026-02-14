@@ -2,14 +2,22 @@
   "name": "zeit-automation",
   "version": "1.0.0",
   "private": true,
-  "description": "ZEIT automation via Playwright + GitHub Actions",
+  "description": "ZEIT Buchung Automation via Playwright (local trigger)",
   "main": "scripts/run.js",
   "scripts": {
-    "run": "node scripts/run.js",
-    "toggle": "ACTION=toggle node scripts/run.js",
-    "break": "ACTION=break node scripts/run.js"
+    "normal": "ACTION=normal node scripts/run.js",
+    "mittag": "ACTION=mittag node scripts/run.js",
+    "normal:dev": "HEADLESS=false DEBUG=true SLOW_MO=1000 ACTION=normal node scripts/run.js",
+    "mittag:dev": "HEADLESS=false DEBUG=true SLOW_MO=1000 ACTION=mittag node scripts/run.js",
+    "normal:slow": "HEADLESS=false DEBUG=true SLOW_MO=3000 ACTION=normal node scripts/run.js",
+    "mittag:slow": "HEADLESS=false DEBUG=true SLOW_MO=3000 ACTION=mittag node scripts/run.js",
+    "server": "node scripts/trigger-server.js",
+    "self-test": "node scripts/self-test.js",
+    "test": "node scripts/run.test.js",
+    "codegen": "npx playwright codegen https://zeit.niceshops.cloud/"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "playwright": "^1.50.0"
   }
 }

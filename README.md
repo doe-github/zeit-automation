@@ -1,137 +1,106 @@
-# zeit-automation
+# ZEIT Buchung Automation
 
-Automation for ZEIT time tracking system using Node.js and Playwright.
+Automatische Zeitbuchung via Playwright - lokal am Mac, ausgelöst vom iPhone.
 
-## Overview
+## Actions
 
-This project automates interactions with the ZEIT time tracking system (https://zeit.niceshops.cloud/). It supports the following actions:
-- **toggle**: Clock in/out
-- **break**: Take a lunch break
-
-## Prerequisites
-
-- Node.js 18 or higher
-- npm
+| Action | Beschreibung |
+|--------|--------------|
+| `normal` | Normalbuchung (Kommen/Gehen) |
+| `mittag` | Mittagspause |
 
 ## Setup
 
-1. Clone the repository:
-```bash
-git clone https://github.com/doe-github/zeit-automation.git
-cd zeit-automation
-```
-
-2. Install dependencies:
+### 1. Dependencies installieren
 ```bash
 npm install
-```
-
-3. Install Playwright browsers:
-```bash
 npx playwright install chromium
 ```
 
-## Configuration
+### 2. Credentials konfigurieren
+Kopiere `.env.example` zu `.env` und trage deine Daten ein:
+```bash
+cp .env.example .env
+```
 
-The automation requires the following environment variables:
+Dann editiere `.env`:
+```
+ZEIT_USER=dein_login_username
+ZEIT_PASS=dein_login_passwort
+MITARBEITER_USER=deine_mitarbeiternummer
+MITARBEITER_PASS=deine_pin
+```
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ZEIT_USER` | Yes | - | Your ZEIT username |
-| `ZEIT_PASS` | Yes | - | Your ZEIT password |
-| `ZEIT_BASE_URL` | No | `https://zeit.niceshops.cloud/` | The ZEIT instance URL |
-| `ACTION` | No | `toggle` | Action to perform: `toggle` or `break` |
-
-## Local Usage
-
-Set the required environment variables and run:
+## Lokales Testen
 
 ```bash
-export ZEIT_USER="your-username"
-export ZEIT_PASS="your-password"
-export ACTION="toggle"  # or "break"
-npm start
+# Normalbuchung (Kommen/Gehen)
+npm run normal
+npm run normal:dev   # mit Browser sichtbar
+npm run normal:slow  # langsam zum Zuschauen
+
+# Mittagspause
+npm run mittag
+npm run mittag:dev   # mit Browser sichtbar
+npm run mittag:slow  # langsam zum Zuschauen
 ```
 
-## GitHub Actions Usage
+## Vom iPhone auslösen
 
-This repository includes a GitHub Actions workflow that can be manually triggered.
-
-### Setup Secrets
-
-Before using the workflow, configure the following secrets in your repository settings:
-
-1. Go to Settings > Secrets and variables > Actions
-2. Add the following secrets:
-   - `ZEIT_USER`: Your ZEIT username
-   - `ZEIT_PASS`: Your ZEIT password
-   - `ZEIT_BASE_URL` (optional): Custom ZEIT URL if different from default
-
-### Running the Workflow
-
-1. Go to the Actions tab in your GitHub repository
-2. Select "ZEIT Automation" workflow
-3. Click "Run workflow"
-4. Choose the action:
-   - `toggle`: Clock in/out
-   - `break`: Take a lunch break
-5. Click "Run workflow"
-
-### Failure Artifacts
-
-If the automation fails, the workflow automatically captures and uploads:
-- Screenshot of the page at the time of failure
-- HTML content of the page for debugging
-
-You can download these artifacts from the workflow run page.
-
-## Development
-
-### TODO: Update Selectors
-
-The current implementation uses placeholder selectors that need to be updated based on the actual ZEIT login page structure:
-
-1. **Login form selectors** in `scripts/run.js`:
-   - `input[name="username"]` - Update with actual username field selector
-   - `input[name="password"]` - Update with actual password field selector
-   - `button[type="submit"]` - Update with actual login button selector
-
-2. **Action button selectors** in `scripts/run.js`:
-   - `button[data-action="toggle"]` - Update with actual toggle button selector
-   - `button[data-action="break"]` - Update with actual break button selector
-
-To find the correct selectors:
-1. Open https://zeit.niceshops.cloud/ in a browser
-2. Use browser DevTools (F12) to inspect the elements
-3. Update the selectors in `scripts/run.js`
-
-## Project Structure
-
+### Schritt 1: Server am Mac starten
+```bash
+npm run server
 ```
-zeit-automation/
-├── .github/
-│   └── workflows/
-│       └── zeit.yml          # GitHub Actions workflow
-├── scripts/
-│   └── run.js                # Main automation script
-├── package.json              # Node.js dependencies
-└── README.md                 # This file
+Der Server läuft auf `http://0.0.0.0:8787`
+
+### Schritt 2: Mac IP-Adresse herausfinden
+```bash
+ipconfig getifaddr en0
 ```
+Beispiel: `192.168.1.42`
 
-## Troubleshooting
+### Schritt 3: iPhone Kurzbefehle erstellen
 
-### Authentication Issues
-- Verify that `ZEIT_USER` and `ZEIT_PASS` are correctly set
-- Check if the login page URL has changed
+**Kurzbefehl 1: "ZEIT Kommen/Gehen"**
+1. Kurzbefehle App → **+**
+2. Aktion: **URL abrufen**
+3. URL: `http://192.168.1.42:8787/trigger?action=normal`
+4. Methode: `POST`
 
-### Selector Issues
-- Update the selectors in `scripts/run.js` based on the actual ZEIT page structure
-- Use browser DevTools to find the correct element selectors
+**Kurzbefehl 2: "ZEIT Mittagspause"**
+1. Kurzbefehle App → **+**
+2. Aktion: **URL abrufen**
+3. URL: `http://192.168.1.42:8787/trigger?action=mittag`
+4. Methode: `POST`
 
-### Workflow Failures
-- Check the workflow logs in the Actions tab
-- Download the error artifacts (screenshot and HTML) for debugging
+### Schritt 4: Auslösen
+- Tippe auf den Kurzbefehl
+- Oder sage "Hey Siri, ZEIT Kommen Gehen"
 
-## License
+## API Endpoints
 
-MIT
+| Endpoint | Methode | Beschreibung |
+|----------|---------|--------------|
+| `/health` | GET | Server-Status |
+| `/status` | GET | Letzter Run |
+| `/trigger?action=normal` | POST/GET | Normalbuchung |
+| `/trigger?action=mittag` | POST/GET | Mittagspause |
+
+## Wichtige Hinweise
+
+⚠️ **Der Mac muss eingeschaltet sein** und der Server muss laufen (`npm run server`)
+
+⚠️ **iPhone und Mac müssen im gleichen WLAN sein**
+
+⚠️ **Credentials werden NICHT eingecheckt** (`.env` ist in `.gitignore`)
+
+## Scripts
+
+| Befehl | Beschreibung |
+|--------|--------------|
+| `npm run normal` | Normalbuchung headless |
+| `npm run mittag` | Mittagspause headless |
+| `npm run normal:dev` | Normalbuchung mit Browser |
+| `npm run mittag:dev` | Mittagspause mit Browser |
+| `npm run server` | Trigger-Server starten |
+| `npm run codegen` | Neuen Flow aufzeichnen |

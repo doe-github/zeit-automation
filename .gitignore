@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Credentials - NEVER commit!
+.env
+
 # Error artifacts
 error-*.png
 error-*.html
